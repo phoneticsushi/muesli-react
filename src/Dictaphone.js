@@ -7,6 +7,7 @@ import React, {
   useMemo
 } from "react";
 import AudioDisplay from './AudioDisplay.js';
+import useKeypress from 'react-use-keypress';
 
 async function getMicrophone() {
   console.log('GET MIC')
@@ -43,6 +44,12 @@ function Dictaphone(props) {
     };
   }, []);
 
+  useKeypress('r', (event) => {
+    if (event.altKey) {
+      toggleRecording()
+    }
+  });
+
   const [mediaRecorder, setMediaRecorder] = useState()
   const chunksRef = useRef()
   const [audioURL, setAudioURL] = useState()
@@ -77,12 +84,22 @@ function Dictaphone(props) {
     console.log("recorder stopped");
   }
   
-  const [recordingState, setRecordingState] = useState()
-
-  function recordingButton()
-  {
+  //TODO: consolidate start and stop recording into one function when removing console logs
+  function toggleRecording() {
     if (recordingState === "recording")
     {
+      stopRecording()
+    }
+    else
+    {
+      startRecording()
+    }
+  }
+
+  const [recordingState, setRecordingState] = useState()
+
+  function recordingButton() {
+    if (recordingState === "recording") {
       return <Button onClick={stopRecording} color="error">Stop Recording</Button>
     } else {
       return <Button onClick={startRecording} color="success">Start Recording</Button>
