@@ -1,4 +1,4 @@
-import { Box, Button, ButtonGroup, Checkbox, FormGroup, FormControlLabel, TextField } from '@mui/material';
+import { Box, Button, Tooltip, Checkbox, FormGroup, FormControlLabel, TextField } from '@mui/material';
 import React, {
   useCallback,
   useEffect,
@@ -99,11 +99,18 @@ function Dictaphone(props) {
   const [recordingState, setRecordingState] = useState()
 
   function recordingButton() {
+    let button;
     if (recordingState === "recording") {
-      return <Button onClick={stopRecording} color="error">Stop Recording</Button>
+      button = <Button onClick={stopRecording} color="error" variant="outlined">Stop Recording</Button>
     } else {
-      return <Button onClick={startRecording} color="success">Start Recording</Button>
+      button = <Button onClick={startRecording} color="success" variant="outlined">Start Recording</Button>
     }
+
+    return (
+      <Tooltip title="Toggle with Alt-R">
+        {button}
+      </Tooltip>
+    );
   }
 
   // For debugging state transitions on AudioDisplay
