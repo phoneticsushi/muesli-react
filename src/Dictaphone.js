@@ -1,11 +1,10 @@
-import { Box, Button, Tooltip, Checkbox, FormGroup, FormControlLabel, TextField } from '@mui/material';
+import { Box, Tooltip, Checkbox, FormGroup, FormControlLabel, TextField } from '@mui/material';
 import React, {
-  useCallback,
   useEffect,
   useRef,
   useState,
-  useMemo
 } from "react";
+import ToggleButton from './ToggleButton.js';
 import AudioDisplay from './AudioDisplay.js';
 import useKeypress from 'react-use-keypress';
 
@@ -98,29 +97,23 @@ function Dictaphone(props) {
 
   const [recordingState, setRecordingState] = useState()
 
-  function recordingButton() {
-    let button;
-    if (recordingState === "recording") {
-      button = <Button onClick={stopRecording} color="error">Stop Recording</Button>
-    } else {
-      button = <Button onClick={startRecording} color="success">Start Recording</Button>
-    }
-
-    return (
-      <Tooltip title="Toggle with Alt-R">
-        {button}
-      </Tooltip>
-    );
-  }
-
   // For debugging state transitions on AudioDisplay
   const [loop, setLoop] = useState(false)  // default to match checkbox
   const [autoplay, setAutoplay] = useState(false)  // default to match checkbox
 
+  // FIXME: for some reason, wrapping the ToggleButton in Tooltip here
+  // only displays the Tooltip when after the first time the Button is clicked
   return (
     <Box>
       <h2>Dictaphone WIP</h2>
-      {recordingButton()}
+      <Tooltip title="Toggle with Alt-R" arrow>
+        <ToggleButton
+          enabled={recordingState === "recording"}
+          enableText="Start Recording"
+          disableText="Stop Recording"
+          onClick={toggleRecording}
+        />
+      </Tooltip>
       <TextField
         label="Custom Audio File Path"
         placeholder="Hello hello"
