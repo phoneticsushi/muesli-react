@@ -4,7 +4,6 @@ import './App.css';
 
 import LandingPage from './LandingPage.js';
 import Dictaphone from './Dictaphone.js';
-import Sandbox from './Sandbox.js';
 
 function App() {
   const darkTheme = createTheme({
