@@ -11,6 +11,13 @@ function App() {
     palette: {
       mode: 'dark',
     },
+    components: {
+      MuiButton: {
+        defaultProps: {
+          variant: 'outlined',
+        },
+      },
+    },
   });
 
   return (

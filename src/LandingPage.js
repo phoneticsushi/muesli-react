@@ -15,7 +15,6 @@ function LandingPage() {
       <Alert severity="success">BEES?!?</Alert>
       <Button
         fullWidth
-        variant="outlined"
         color="primary"
         onClick={testEvent}
       >

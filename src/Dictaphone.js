@@ -101,9 +101,9 @@ function Dictaphone(props) {
   function recordingButton() {
     let button;
     if (recordingState === "recording") {
-      button = <Button onClick={stopRecording} color="error" variant="outlined">Stop Recording</Button>
+      button = <Button onClick={stopRecording} color="error">Stop Recording</Button>
     } else {
-      button = <Button onClick={startRecording} color="success" variant="outlined">Start Recording</Button>
+      button = <Button onClick={startRecording} color="success">Start Recording</Button>
     }
 
     return (
