@@ -82,6 +82,7 @@ function detectionTerminated() {
 function Dictaphone(props) {
   // Set/cleared when the user toggles recording
   const mediaStreamRef = useRef();
+  const [isRecording, setRecordingState] = useState()
 
   useKeypress('r', (event) => {
     if (event.altKey) {
@@ -94,11 +95,11 @@ function Dictaphone(props) {
   const [audioURL, setAudioURL] = useState()
 
   function toggleRecording() {
-    if (recordingState === "recording")
+    if (isRecording)
     {
       //mediaRecorder.stop();
       releaseMicrophone(mediaStreamRef);
-      setRecordingState("stopped")
+      setRecordingState(false)
     }
     else
     {
@@ -106,7 +107,7 @@ function Dictaphone(props) {
         mediaStreamRef.current = stream
         detectSilence(mediaStreamRef, startThaNoize, endThaNoize, detectionTerminated);
       });
-      setRecordingState("recording")
+      setRecordingState(true)
 
       // mediaRecorder.start();
   
@@ -127,11 +128,7 @@ function Dictaphone(props) {
       //   setAudioURL(audioURL)
       // }
     }
-    // setRecordingState(mediaRecorder.state)
   }
-
-  // FIXME: make this implicit by checking mediaStreamRef == null?
-  const [recordingState, setRecordingState] = useState()
 
   // For debugging state transitions on AudioDisplay
   const [loop, setLoop] = useState(false)  // default to match checkbox
@@ -146,7 +143,7 @@ function Dictaphone(props) {
       <h2>Dictaphone WIP</h2>
       <Tooltip title="Toggle with Alt-R" arrow>
         <ToggleButton
-          enabled={recordingState === "recording"}
+          enabled={isRecording}
           enableText="Start Recording"
           disableText="Stop Recording"
           onClick={toggleRecording}
