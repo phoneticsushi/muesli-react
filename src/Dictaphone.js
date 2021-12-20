@@ -9,7 +9,7 @@ import AudioDisplay from './AudioDisplay.js';
 import useKeypress from 'react-use-keypress';
 
 async function getMicrophone() {
-  console.log('GET MIC')
+  console.log('Open Microphone')
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: true,
     video: false
@@ -17,31 +17,71 @@ async function getMicrophone() {
   return stream;
 }
 
-function releaseMicrophone(handle) {
-  console.log(handle)
-  handle.getTracks().forEach(track => track.stop());
-  console.log('RELEASE MIC')
+function releaseMicrophone(mediaStreamRef) {
+  console.log('Release Microphone', mediaStreamRef)
+  mediaStreamRef.current.getTracks().forEach(track => track.stop());
+  mediaStreamRef.current = null
+}
+
+function detectSilence(
+  streamRef,
+  onSoundStart = _=> {},
+  onSoundEnd = _=> {},
+  onDetectionTerminate = _=> {},
+  silence_delay = 2000,  // in ms
+  min_decibels = -70
+  ) {
+  console.log('detect silience')
+  const ctx = new AudioContext();
+  const analyser = ctx.createAnalyser();
+  const streamNode = ctx.createMediaStreamSource(streamRef.current);
+  streamNode.connect(analyser);
+  analyser.minDecibels = min_decibels;
+
+  // FIXME: does this leak memory?
+  const data = new Uint8Array(analyser.frequencyBinCount); // will hold our data
+  let silence_start = performance.now();
+  let triggered = false; // trigger only once per silence event
+
+  function loop(time) {
+    if (streamRef.current == null)
+    {
+      onDetectionTerminate();
+      return;
+    }
+
+    requestAnimationFrame(loop); // we'll loop every 60th of a second to check
+    analyser.getByteFrequencyData(data); // get current data
+    if (data.some(v => v)) { // if there is data above the given db limit
+      if(triggered){
+        triggered = false;
+        onSoundStart();
+        }
+      silence_start = time; // set it to now
+    }
+    if (!triggered && time - silence_start > silence_delay) {
+      onSoundEnd();
+      triggered = true;
+    }
+  }
+  loop();
+}
+
+function startThaNoize() {
+  console.log('Sound Started');
+}
+
+function endThaNoize() {
+  console.log('Sound Ended');
+}
+
+function detectionTerminated() {
+  console.log('Detection Terminated');
 }
 
 function Dictaphone(props) {
-  // Idiom for component-bound state with cleanup
-  const [mediaStream, setMediaStream] = useState()
+  // Set/cleared when the user toggles recording
   const mediaStreamRef = useRef();
-
-  useEffect(() => {
-    getMicrophone().then(stream => {
-      mediaStreamRef.current = stream
-      setMediaRecorder(new MediaRecorder(stream));
-    });
-  }, [mediaStream]);
-
-  useEffect(() => {
-    return function cleanup() {
-      if (mediaStreamRef.current) {
-        releaseMicrophone(mediaStreamRef.current);
-      }
-    };
-  }, []);
 
   useKeypress('r', (event) => {
     if (event.altKey) {
@@ -56,32 +96,41 @@ function Dictaphone(props) {
   function toggleRecording() {
     if (recordingState === "recording")
     {
-      mediaRecorder.stop();
+      //mediaRecorder.stop();
+      releaseMicrophone(mediaStreamRef);
+      setRecordingState("stopped")
     }
     else
     {
-      mediaRecorder.start();
+      getMicrophone().then(stream => {
+        mediaStreamRef.current = stream
+        detectSilence(mediaStreamRef, startThaNoize, endThaNoize, detectionTerminated);
+      });
+      setRecordingState("recording")
+
+      // mediaRecorder.start();
   
-      // TODO: remove shim that sets most recent audio as audioURL
-      chunksRef.current = [];
+      // // TODO: remove shim that sets most recent audio as audioURL
+      // chunksRef.current = [];
 
-      mediaRecorder.ondataavailable = function(e) {
-        chunksRef.current.push(e.data);
-      }
+      // mediaRecorder.ondataavailable = function(e) {
+      //   chunksRef.current.push(e.data);
+      // }
 
-      mediaRecorder.onstop = function(e) {
-        console.log("recorder stopped");
+      // mediaRecorder.onstop = function(e) {
+      //   console.log("recorder stopped");
 
-        const blob = new Blob(chunksRef.current, { 'type' : 'audio/ogg; codecs=opus' });
-        chunksRef.current = [];
-        const audioURL = window.URL.createObjectURL(blob);
-        console.log(audioURL);
-        setAudioURL(audioURL)
-      }
+      //   const blob = new Blob(chunksRef.current, { 'type' : 'audio/ogg; codecs=opus' });
+      //   chunksRef.current = [];
+      //   const audioURL = window.URL.createObjectURL(blob);
+      //   console.log(audioURL);
+      //   setAudioURL(audioURL)
+      // }
     }
-    setRecordingState(mediaRecorder.state)
+    // setRecordingState(mediaRecorder.state)
   }
 
+  // FIXME: make this implicit by checking mediaStreamRef == null?
   const [recordingState, setRecordingState] = useState()
 
   // For debugging state transitions on AudioDisplay
@@ -90,6 +139,8 @@ function Dictaphone(props) {
 
   // FIXME: for some reason, wrapping the ToggleButton in Tooltip here
   // only displays the Tooltip when after the first time the Button is clicked
+  // This is due to the ToggleButton not containing a Ref since it's a function object
+  // Need to either make it a class or find another way around
   return (
     <Box>
       <h2>Dictaphone WIP</h2>
