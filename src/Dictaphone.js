@@ -53,46 +53,33 @@ function Dictaphone(props) {
   const chunksRef = useRef()
   const [audioURL, setAudioURL] = useState()
 
-  function startRecording() {
-    mediaRecorder.start();
-    setRecordingState(mediaRecorder.state)
-    console.log(mediaRecorder.state);
-    console.log("recorder started");
-  
-    chunksRef.current = [];
-
-    mediaRecorder.ondataavailable = function(e) {
-      chunksRef.current.push(e.data);
-    }
-
-    mediaRecorder.onstop = function(e) {
-      console.log("recorder stopped");
-
-      const blob = new Blob(chunksRef.current, { 'type' : 'audio/ogg; codecs=opus' });
-      chunksRef.current = [];
-      const audioURL = window.URL.createObjectURL(blob);
-      console.log(audioURL);
-      setAudioURL(audioURL)
-    }
-  }
-
-  function stopRecording() {
-    mediaRecorder.stop();
-    setRecordingState(mediaRecorder.state)
-    console.log(mediaRecorder.state);
-    console.log("recorder stopped");
-  }
-  
-  //TODO: consolidate start and stop recording into one function when removing console logs
   function toggleRecording() {
     if (recordingState === "recording")
     {
-      stopRecording()
+      mediaRecorder.stop();
     }
     else
     {
-      startRecording()
+      mediaRecorder.start();
+  
+      // TODO: remove shim that sets most recent audio as audioURL
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = function(e) {
+        chunksRef.current.push(e.data);
+      }
+
+      mediaRecorder.onstop = function(e) {
+        console.log("recorder stopped");
+
+        const blob = new Blob(chunksRef.current, { 'type' : 'audio/ogg; codecs=opus' });
+        chunksRef.current = [];
+        const audioURL = window.URL.createObjectURL(blob);
+        console.log(audioURL);
+        setAudioURL(audioURL)
+      }
     }
+    setRecordingState(mediaRecorder.state)
   }
 
   const [recordingState, setRecordingState] = useState()
