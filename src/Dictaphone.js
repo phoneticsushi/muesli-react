@@ -7,6 +7,16 @@ import ToggleButton from './ToggleButton.js';
 import AudioDisplay from './AudioDisplay.js';
 import useKeypress from 'react-use-keypress';
 
+// Bug list:
+// TODO: Need to collect 500ms or so of audio before and after the 
+//       We need to be able to trim the MediaRecorder's output on the time (i.e. not chunk) axis
+//       This can be faked by setting the time window really low and trimming on chunks
+//       Won't work for triming the preceding audio if the first chunk contains important metadata
+//       Worth a shot eh
+// TODO: Should trim the "detected silence" window from the recording after a silence window
+//       Should NOT trim at all when the user invokes "Stop Recording"
+// TODO: Spacebar should pause/play the MOST RECENTLY CLICKED-ON AudioDisplay and do nothing else
+
 async function getMicrophone() {
   console.log('Open Microphone')
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -28,7 +38,7 @@ function detectSilence(
   onSoundEnd = _=> {},
   onDetectionTerminate = _=> {},
   silence_delay = 2000,  // in ms
-  min_decibels = -70  // TODO: make this a control in the UI
+  min_decibels = -70
   ) {
   const ctx = new AudioContext();
   const analyser = ctx.createAnalyser();
@@ -97,9 +107,12 @@ function Dictaphone(props) {
   }
 
   // Relies on setAudioURLs
-  function recordAudioClips(streamRef) {
+  function recordAudioClips(streamRef, silenceLengthMs = 2000) {
     const recorder = new MediaRecorder(streamRef.current);
     let chunks = []
+    // FIXME: move magic numbers into UI controls
+    const chunkSizeMs = 50
+    const numSilenceChunks = silenceLengthMs / chunkSizeMs
 
     recorder.ondataavailable =
       function(e) {
@@ -108,21 +121,35 @@ function Dictaphone(props) {
 
     recorder.onstop =
       function(e) {
-        console.log("Converting Audio...")
-
-        // Convert recorded audio
-        const blob = new Blob(chunks, { 'type' : 'audio/ogg; codecs=opus' });
-        const newAudioURL = window.URL.createObjectURL(blob);
-        //FIXME: remove closing silence
-        console.log("Generated clip", newAudioURL);
-        setAudioURLs(audioURLs => [newAudioURL, ...audioURLs])  // Most recent clip first
+        // FIXME: don't do this - find a way to trim the audio instead
+        // will be required for pre-recording due to the way
+        // audio metadata is embedded in the first chunk
+        // i.e. can't simply drop the first chunk
+        if (chunks.length <= numSilenceChunks) {
+          // Drop this clip as it's too short to be an actual recording
+          console.log("Skipping Audio conversion as number of chunks", chunks.length, "<", numSilenceChunks)
+        } else {
+          // Convert recorded audio, trimming off the final silence
+          console.log("Converting Audio as number of chunks", chunks.length, ">", numSilenceChunks)
+          const blob = new Blob(chunks.slice(0, chunks.length - numSilenceChunks), { 'type' : 'audio/ogg; codecs=opus' });
+          const newAudioURL = window.URL.createObjectURL(blob);
+          console.log("Generated clip", newAudioURL);
+          setAudioURLs(audioURLs => [newAudioURL, ...audioURLs])  // Most recent clip first
+        }
 
         // Reset for next recording
         chunks = [];
       }
 
     // FIXME: Why the heck does this work but (streamRef, recorder.start, recorder.stop) doesn't?
-    detectSilence(streamRef, _ => recorder.start(), _ => recorder.stop(), _ => recorder.onstop = void 0);
+    detectSilence(
+      streamRef,
+      _ => recorder.start(chunkSizeMs),
+      _ => recorder.stop(),
+      _=> {},  // Do nothing special when the detection routine terminates
+      silenceLengthMs,
+      -70  // TODO: remove magic number
+    );
   }
 
   // For debugging state transitions on AudioDisplay
