@@ -52,14 +52,16 @@ function detectSilence(
     analyser.getByteFrequencyData(data); // get current data
     if (data.some(v => v)) { // if there is data above the given db limit
       if(triggered){
-        triggered = false;
         onSoundStart();
+        triggered = false;
+        console.log("Audio Started")
         }
       silence_start = time; // set it to now
     }
     if (!triggered && time - silence_start > silence_delay) {
       onSoundEnd();
       triggered = true;
+      console.log("Audio Stopped")
     }
   }
   loop();
@@ -81,7 +83,6 @@ function Dictaphone(props) {
   function toggleRecording() {
     if (isRecording)
     {
-      //mediaRecorder.stop();
       releaseMicrophone(mediaStreamRef);
       setRecordingState(false)
     }
@@ -97,7 +98,6 @@ function Dictaphone(props) {
 
   // Relies on setAudioURLs
   function recordAudioClips(streamRef) {
-    console.log("Recording Started", streamRef.current)
     const recorder = new MediaRecorder(streamRef.current);
     let chunks = []
 
@@ -108,7 +108,7 @@ function Dictaphone(props) {
 
     recorder.onstop =
       function(e) {
-        console.log("Clip Recording Stopped")
+        console.log("Converting Audio...")
 
         // Convert recorded audio
         const blob = new Blob(chunks, { 'type' : 'audio/ogg; codecs=opus' });
@@ -121,8 +121,8 @@ function Dictaphone(props) {
         chunks = [];
       }
 
-    detectSilence(streamRef, recorder.start, recorder.stop);
-    recorder.start()  // TODO: refactor this into detectSilence?
+    // FIXME: Why the heck does this work but (streamRef, recorder.start, recorder.stop) doesn't?
+    detectSilence(streamRef, _ => recorder.start(), _ => recorder.stop(), _ => recorder.onstop = void 0);
   }
 
   // For debugging state transitions on AudioDisplay
@@ -153,7 +153,8 @@ function Dictaphone(props) {
         <FormControlLabel control={<Checkbox onChange={(e) => setLoop(e.target.checked)} />} label="Loop" />
         <FormControlLabel control={<Checkbox onChange={(e) => setAutoplay(e.target.checked)} />} label="Autoplay" />
       </FormGroup>
-      {audioURLs.map(url => <AudioDisplay audioPath={url} autoplay={autoplay} loop={loop}/>)}
+      {/* FIXME: update key with some sort of name? */}
+      {audioURLs.map(url => <AudioDisplay key={url} audioPath={url} autoplay={autoplay} loop={loop}/>)}
     </Box>
   );
 }
