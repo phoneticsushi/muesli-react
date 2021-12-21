@@ -1,6 +1,5 @@
 import { Box, Tooltip, Checkbox, FormGroup, FormControlLabel, TextField } from '@mui/material';
 import React, {
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -29,9 +28,8 @@ function detectSilence(
   onSoundEnd = _=> {},
   onDetectionTerminate = _=> {},
   silence_delay = 2000,  // in ms
-  min_decibels = -70
+  min_decibels = -70  // TODO: make this a control in the UI
   ) {
-  console.log('detect silience')
   const ctx = new AudioContext();
   const analyser = ctx.createAnalyser();
   const streamNode = ctx.createMediaStreamSource(streamRef.current);
@@ -67,18 +65,6 @@ function detectSilence(
   loop();
 }
 
-function startThaNoize() {
-  console.log('Sound Started');
-}
-
-function endThaNoize() {
-  console.log('Sound Ended');
-}
-
-function detectionTerminated() {
-  console.log('Detection Terminated');
-}
-
 function Dictaphone(props) {
   // Set/cleared when the user toggles recording
   const mediaStreamRef = useRef();
@@ -90,9 +76,7 @@ function Dictaphone(props) {
     }
   });
 
-  const [mediaRecorder, setMediaRecorder] = useState()
-  const chunksRef = useRef()
-  const [audioURL, setAudioURL] = useState()
+  const [audioURLs, setAudioURLs] = useState([])
 
   function toggleRecording() {
     if (isRecording)
@@ -105,29 +89,40 @@ function Dictaphone(props) {
     {
       getMicrophone().then(stream => {
         mediaStreamRef.current = stream
-        detectSilence(mediaStreamRef, startThaNoize, endThaNoize, detectionTerminated);
+        recordAudioClips(mediaStreamRef);
       });
       setRecordingState(true)
-
-      // mediaRecorder.start();
-  
-      // // TODO: remove shim that sets most recent audio as audioURL
-      // chunksRef.current = [];
-
-      // mediaRecorder.ondataavailable = function(e) {
-      //   chunksRef.current.push(e.data);
-      // }
-
-      // mediaRecorder.onstop = function(e) {
-      //   console.log("recorder stopped");
-
-      //   const blob = new Blob(chunksRef.current, { 'type' : 'audio/ogg; codecs=opus' });
-      //   chunksRef.current = [];
-      //   const audioURL = window.URL.createObjectURL(blob);
-      //   console.log(audioURL);
-      //   setAudioURL(audioURL)
-      // }
     }
+  }
+
+  // Relies on setAudioURLs
+  function recordAudioClips(streamRef) {
+    console.log("Recording Started", streamRef.current)
+    const recorder = new MediaRecorder(streamRef.current);
+    let chunks = []
+
+    recorder.ondataavailable =
+      function(e) {
+          chunks.push(e.data);
+      }
+
+    recorder.onstop =
+      function(e) {
+        console.log("Clip Recording Stopped")
+
+        // Convert recorded audio
+        const blob = new Blob(chunks, { 'type' : 'audio/ogg; codecs=opus' });
+        const newAudioURL = window.URL.createObjectURL(blob);
+        //FIXME: remove closing silence
+        console.log("Generated clip", newAudioURL);
+        setAudioURLs(audioURLs => [newAudioURL, ...audioURLs])  // Most recent clip first
+
+        // Reset for next recording
+        chunks = [];
+      }
+
+    detectSilence(streamRef, recorder.start, recorder.stop);
+    recorder.start()  // TODO: refactor this into detectSilence?
   }
 
   // For debugging state transitions on AudioDisplay
@@ -152,13 +147,13 @@ function Dictaphone(props) {
       <TextField
         label="Custom Audio File Path"
         placeholder="Hello hello"
-        onChange={(e) => setAudioURL(e.target.value)}
+        onChange={(e) => setAudioURLs([e.target.value])}
       />
       <FormGroup>
         <FormControlLabel control={<Checkbox onChange={(e) => setLoop(e.target.checked)} />} label="Loop" />
         <FormControlLabel control={<Checkbox onChange={(e) => setAutoplay(e.target.checked)} />} label="Autoplay" />
       </FormGroup>
-      <AudioDisplay audioPath={audioURL} autoplay={autoplay} loop={loop}/>
+      {audioURLs.map(url => <AudioDisplay audioPath={url} autoplay={autoplay} loop={loop}/>)}
     </Box>
   );
 }
