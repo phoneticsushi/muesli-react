@@ -1,8 +1,8 @@
 {
   "files": {
     "main.css": "/muesli-react/static/css/main.b524be57.chunk.css",
-    "main.js": "/muesli-react/static/js/main.fb126be4.chunk.js",
-    "main.js.map": "/muesli-react/static/js/main.fb126be4.chunk.js.map",
+    "main.js": "/muesli-react/static/js/main.b3c1ef54.chunk.js",
+    "main.js.map": "/muesli-react/static/js/main.b3c1ef54.chunk.js.map",
     "runtime-main.js": "/muesli-react/static/js/runtime-main.17152c4d.js",
     "runtime-main.js.map": "/muesli-react/static/js/runtime-main.17152c4d.js.map",
     "static/js/2.ccf07278.chunk.js": "/muesli-react/static/js/2.ccf07278.chunk.js",
@@ -17,6 +17,6 @@
     "static/js/runtime-main.17152c4d.js",
     "static/js/2.ccf07278.chunk.js",
     "static/css/main.b524be57.chunk.css",
-    "static/js/main.fb126be4.chunk.js"
+    "static/js/main.b3c1ef54.chunk.js"
   ]
 }
