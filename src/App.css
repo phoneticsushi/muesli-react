@@ -16,7 +16,7 @@
 /* TODO: use MUI for this as well? */
 /* Best course of action is probably to refactor individual parts out over time */
 .App {
-  background-color: #10051a;
+  /* background-color: #10051a; */
   min-height: 100vh;
   /* display: flex; */
   /* flex-direction: column; */

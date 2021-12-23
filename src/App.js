@@ -9,6 +9,9 @@ function App() {
   const darkTheme = createTheme({
     palette: {
       mode: 'dark',
+      background: {
+        default: "#10051a"
+      },
     },
     components: {
       MuiButton: {
