@@ -33,33 +33,39 @@ function releaseMicrophone(mediaStreamRef) {
 }
 
 function detectSilence(
-  streamRef,
+  audioCtx,
+  sourceAudioNode,
+  silence_delay_ms,
+  min_decibels,
   onSoundStart = _=> {},
   onSoundEnd = _=> {},
   onDetectionTerminate = _=> {},
-  silence_delay = 2000,  // in ms
-  min_decibels = -70
   ) {
-  const ctx = new AudioContext();
-  const analyser = ctx.createAnalyser();
-  const streamNode = ctx.createMediaStreamSource(streamRef.current);
-  streamNode.connect(analyser);
-  analyser.minDecibels = min_decibels;
+  const analyserNode = new AnalyserNode(audioCtx, {
+    minDecibels: min_decibels,
+  });
+  sourceAudioNode.connect(analyserNode);
+  let streamClosed = false;
+  sourceAudioNode.onended = function () {
+        console.log('Silence Node Closed');
+        streamClosed = true;
+    };
 
   // FIXME: does this leak memory?
-  const data = new Uint8Array(analyser.frequencyBinCount); // will hold our data
+  const data = new Uint8Array(analyserNode.frequencyBinCount); // will hold our data
   let silence_start = performance.now();
   let triggered = false; // trigger only once per silence event
 
   function loop(time) {
-    if (streamRef.current == null)
+    if (streamClosed)
     {
+      console.log("yes we have no bananas")
       onDetectionTerminate();
       return;
     }
 
     requestAnimationFrame(loop); // we'll loop every 60th of a second to check
-    analyser.getByteFrequencyData(data); // get current data
+    analyserNode.getByteFrequencyData(data); // get current data
     if (data.some(v => v)) { // if there is data above the given db limit
       if(triggered){
         onSoundStart();
@@ -68,7 +74,7 @@ function detectSilence(
         }
       silence_start = time; // set it to now
     }
-    if (!triggered && time - silence_start > silence_delay) {
+    if (!triggered && time - silence_start > silence_delay_ms) {
       onSoundEnd();
       triggered = true;
       console.log("Audio Stopped")
@@ -107,13 +113,31 @@ function Dictaphone(props) {
   }
 
   // Relies on setAudioURLs
-  function recordAudioClips(streamRef, silenceLengthMs = 2000) {
-    const recorder = new MediaRecorder(streamRef.current);
-    let chunks = []
+  function recordAudioClips(
+    streamRef,
     // FIXME: move magic numbers into UI controls
-    const chunkSizeMs = 50
-    const numSilenceChunks = silenceLengthMs / chunkSizeMs
+    silenceDetectionPeriodMs = 2000,
+    recordingPeriodExtensionMs = 250,  // How much audio is retained in each clip before and after silence
+    ) {
+    // Compute remaining time periods
+    const chunkSizeMs = 25;  // pretty arbitrary; tradeoff between precision and performance
+    const numChunksToTrimFromRecordingEnd = (silenceDetectionPeriodMs - 2 * recordingPeriodExtensionMs) / chunkSizeMs;
 
+    // Set up AudioContext
+    const audioCtx = new AudioContext();
+    const sourceNode = audioCtx.createMediaStreamSource(streamRef.current);
+
+    // Record from stream on a delay to allow capturing audio
+    // from before recording is triggered
+    const delayNode = new DelayNode(audioCtx, {
+      delayTime: recordingPeriodExtensionMs / 1000,
+      maxDelayTime: recordingPeriodExtensionMs / 1000,
+    });
+    const destinationNode = audioCtx.createMediaStreamDestination();
+    sourceNode.connect(delayNode).connect(destinationNode);
+    const recorder = new MediaRecorder(destinationNode.stream);
+
+    let chunks = []
     recorder.ondataavailable =
       function(e) {
           chunks.push(e.data);
@@ -125,13 +149,13 @@ function Dictaphone(props) {
         // will be required for pre-recording due to the way
         // audio metadata is embedded in the first chunk
         // i.e. can't simply drop the first chunk
-        if (chunks.length <= numSilenceChunks) {
+        if (chunks.length <= numChunksToTrimFromRecordingEnd) {
           // Drop this clip as it's too short to be an actual recording
-          console.log("Skipping Audio conversion as number of chunks", chunks.length, "<", numSilenceChunks)
+          console.log("Skipping Audio conversion as number of chunks", chunks.length, "<", numChunksToTrimFromRecordingEnd)
         } else {
           // Convert recorded audio, trimming off the final silence
-          console.log("Converting Audio as number of chunks", chunks.length, ">", numSilenceChunks)
-          const blob = new Blob(chunks.slice(0, chunks.length - numSilenceChunks), { 'type' : 'audio/ogg; codecs=opus' });
+          console.log("Converting Audio as number of chunks", chunks.length, ">", numChunksToTrimFromRecordingEnd, "- trimming", numChunksToTrimFromRecordingEnd)
+          const blob = new Blob(chunks.slice(0, chunks.length - numChunksToTrimFromRecordingEnd), { 'type' : 'audio/ogg; codecs=opus' });
           const newAudioURL = window.URL.createObjectURL(blob);
           console.log("Generated clip", newAudioURL);
           setAudioURLs(audioURLs => [newAudioURL, ...audioURLs])  // Most recent clip first
@@ -141,14 +165,27 @@ function Dictaphone(props) {
         chunks = [];
       }
 
-    // FIXME: Why the heck does this work but (streamRef, recorder.start, recorder.stop) doesn't?
+    // TODO: inline these after debugging
+    function startRec() {
+      console.log('START RECORD')
+      recorder.start(chunkSizeMs)
+    }
+
+    function stopRec() {
+      console.log('STOP RECORD')
+      recorder.stop()
+    }
+
+    // Detect silence on the live audio
+    // FIXME: Why the heck does this work but (..., recorder.start, recorder.stop) doesn't?
     detectSilence(
-      streamRef,
-      _ => recorder.start(chunkSizeMs),
-      _ => recorder.stop(),
+      audioCtx,
+      sourceNode,
+      silenceDetectionPeriodMs,
+      -60,  // TODO: remove magic number
+      _ => startRec(),
+      _ => stopRec(),
       _=> {},  // Do nothing special when the detection routine terminates
-      silenceLengthMs,
-      -70  // TODO: remove magic number
     );
   }
 
@@ -162,7 +199,7 @@ function Dictaphone(props) {
   // Need to either make it a class or find another way around
   return (
     <Box>
-      <h2>Dictaphone WIP</h2>
+      <h2>Dictaphone WIP "Effervescence"</h2>
       <Tooltip title="Toggle with Alt-R" arrow>
         <ToggleButton
           enabled={isRecording}
