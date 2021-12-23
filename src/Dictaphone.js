@@ -6,6 +6,7 @@ import React, {
 import ToggleButton from './ToggleButton.js';
 import AudioDisplay from './AudioDisplay.js';
 import useKeypress from 'react-use-keypress';
+import randomWords from 'random-words';
 
 // Bug list:
 // TODO: Need to collect 500ms or so of audio before and after the 
@@ -96,7 +97,7 @@ function Dictaphone(props) {
     }
   });
 
-  const [audioURLs, setAudioURLs] = useState([])
+  const [audioClips, setAudioClips] = useState([])
 
   function toggleRecording() {
     if (isRecording)
@@ -115,7 +116,7 @@ function Dictaphone(props) {
     }
   }
 
-  // Relies on setAudioURLs
+  // Relies on setAudioClips
   function recordAudioClips(
     streamRef,
     // FIXME: move magic numbers into UI controls
@@ -160,9 +161,12 @@ function Dictaphone(props) {
           // Convert recorded audio, trimming off the final silence
           console.log("Converting Audio as number of chunks", chunks.length, ">", numChunksForInsignificantClip, "- trimming", numChunksToTrimFromRecordingEnd)
           const blob = new Blob(chunks.slice(0, chunks.length - numChunksToTrimFromRecordingEnd), { 'type' : 'audio/ogg; codecs=opus' });
-          const newAudioURL = window.URL.createObjectURL(blob);
-          console.log("Generated clip", newAudioURL);
-          setAudioURLs(audioURLs => [newAudioURL, ...audioURLs])  // Most recent clip first
+          const newClip = {
+            name: randomWords({exactly: 1, wordsPerString: 2, separator: '-'})[0],  // Returns array for some reason
+            url: window.URL.createObjectURL(blob)
+          }
+          console.log("Generated clip", newClip);
+          setAudioClips(clips => [newClip, ...clips])  // Most recent clip first
         }
 
         // Reset for next recording
@@ -215,15 +219,15 @@ function Dictaphone(props) {
       <TextField
         label="Custom Audio File Path"
         placeholder="Hello hello"
-        onChange={(e) => setAudioURLs([e.target.value])}
+        onChange={(e) => setAudioClips([{url: e.target.value}])}
       />
       {recordingText}
       <FormGroup>
         <FormControlLabel control={<Checkbox onChange={(e) => setLoop(e.target.checked)} />} label="Loop" />
         <FormControlLabel control={<Checkbox onChange={(e) => setAutoplay(e.target.checked)} />} label="Autoplay" />
       </FormGroup>
-      {/* FIXME: update key with some sort of name? */}
-      {audioURLs.map(url => <AudioDisplay key={url} audioPath={url} autoplay={autoplay} loop={loop}/>)}
+      {/* FIXME: Update key with some server-sidable ID instead of the URL?*/}
+      {audioClips.map(clip => <AudioDisplay key={clip.url} name={clip.name} audioPath={clip.url} autoplay={autoplay} loop={loop}/>)}
     </Box>
   );
 }
