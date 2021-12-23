@@ -3,7 +3,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import ToggleButton from './ToggleButton.js';
+import ToggleButton from './ToggleButton.tsx';
 import AudioDisplay from './AudioDisplay.js';
 import useKeypress from 'react-use-keypress';
 import randomWords from 'random-words';

@@ -1,6 +1,12 @@
 import { Button } from '@mui/material';
 
-function ToggleButton(props) {
+type ToggleButtonProps = {
+  enabled: boolean,
+  enableText: string,
+  disableText: string
+}
+
+function ToggleButton(props: ToggleButtonProps) {
   return (
     <Button
       color={props.enabled ? "error" : "success"}
