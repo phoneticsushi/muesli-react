@@ -54,7 +54,7 @@ function detectSilence(
   // FIXME: does this leak memory?
   const data = new Uint8Array(analyserNode.frequencyBinCount); // will hold our data
   let silence_start = performance.now();
-  let triggered = false; // trigger only once per silence event
+  let activelyRecording = false; // trigger only once per silence event
 
   function loop(time) {
     if (streamClosed)
@@ -67,16 +67,16 @@ function detectSilence(
     requestAnimationFrame(loop); // we'll loop every 60th of a second to check
     analyserNode.getByteFrequencyData(data); // get current data
     if (data.some(v => v)) { // if there is data above the given db limit
-      if(triggered){
+      if(!activelyRecording){
         onSoundStart();
-        triggered = false;
+        activelyRecording = true;
         console.log("Audio Started")
         }
       silence_start = time; // set it to now
     }
-    if (!triggered && time - silence_start > silence_delay_ms) {
+    if (activelyRecording && time - silence_start > silence_delay_ms) {
       onSoundEnd();
-      triggered = true;
+      activelyRecording = false;
       console.log("Audio Stopped")
     }
   }
@@ -120,11 +120,16 @@ function Dictaphone(props) {
     streamRef,
     // FIXME: move magic numbers into UI controls
     silenceDetectionPeriodMs = 2000,
-    recordingPeriodExtensionMs = 250,  // How much audio is retained in each clip before and after silence
+    recordingPeriodExtensionMs = 500,  // How much audio is retained in each clip before and after silence
+    insignificantClipDurationMs = 1000,  // Clips shorter than this won't be saved
     ) {
     // Compute remaining time periods
-    const chunkSizeMs = 25;  // pretty arbitrary; tradeoff between precision and performance
+    // NOTE: there appears to be an undocumented minimum chunk size value o ~60ms (on Firefox at least).
+    // Below 60ms, this implementation breaks since it relies on the chunk size being valid to trim the audio correctly.
+    // FIXME: split audio based on samples/timestamps rather than relying on the recorder to work properly
+    const chunkSizeMs = 100;  // pretty arbitrary; tradeoff between precision and performance
     const numChunksToTrimFromRecordingEnd = (silenceDetectionPeriodMs - 2 * recordingPeriodExtensionMs) / chunkSizeMs;
+    const numChunksForInsignificantClip = insignificantClipDurationMs / chunkSizeMs;
 
     // Set up AudioContext
     const audioCtx = new AudioContext();
@@ -148,16 +153,12 @@ function Dictaphone(props) {
 
     recorder.onstop =
       function(e) {
-        // FIXME: don't do this - find a way to trim the audio instead
-        // will be required for pre-recording due to the way
-        // audio metadata is embedded in the first chunk
-        // i.e. can't simply drop the first chunk
-        if (chunks.length <= numChunksToTrimFromRecordingEnd) {
+        if (chunks.length <= numChunksForInsignificantClip) {
           // Drop this clip as it's too short to be an actual recording
-          console.log("Skipping Audio conversion as number of chunks", chunks.length, "<", numChunksToTrimFromRecordingEnd)
+          console.log("Skipping Audio conversion as number of chunks", chunks.length, "<=", numChunksForInsignificantClip)
         } else {
           // Convert recorded audio, trimming off the final silence
-          console.log("Converting Audio as number of chunks", chunks.length, ">", numChunksToTrimFromRecordingEnd, "- trimming", numChunksToTrimFromRecordingEnd)
+          console.log("Converting Audio as number of chunks", chunks.length, ">", numChunksForInsignificantClip, "- trimming", numChunksToTrimFromRecordingEnd)
           const blob = new Blob(chunks.slice(0, chunks.length - numChunksToTrimFromRecordingEnd), { 'type' : 'audio/ogg; codecs=opus' });
           const newAudioURL = window.URL.createObjectURL(blob);
           console.log("Generated clip", newAudioURL);
@@ -170,7 +171,7 @@ function Dictaphone(props) {
 
     // TODO: inline these after debugging
     function startRec() {
-      setRecordingText('RECORDING')
+      setRecordingText(`RECORDING with chunk size ${chunkSizeMs}`)
       recorder.start(chunkSizeMs)
     }
 

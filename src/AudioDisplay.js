@@ -88,6 +88,7 @@ function AudioDisplay(props) {
     <Box>
       <h2>AudioDisplay WIP</h2>
       <p>Audio Path: {props.audioPath}</p>
+      <p>Audio Duration: {waveSurferRef.current?.getDuration() * 1000}ms</p>{/* FIXME: duration not available until later; use state */}
       <div ref={waveSurferDomRef}></div>
       <Button onClick={play}>Play Audio</Button>
       <Button onClick={pause}>Pause Audio</Button>
