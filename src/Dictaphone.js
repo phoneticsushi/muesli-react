@@ -86,7 +86,9 @@ function detectSilence(
 function Dictaphone(props) {
   // Set/cleared when the user toggles recording
   const mediaStreamRef = useRef();
+  //TODO: disambiguate between mic open and actually recording
   const [isRecording, setRecordingState] = useState()
+  const [recordingText, setRecordingText] = useState('First Load')
 
   useKeypress('r', (event) => {
     if (event.altKey) {
@@ -101,6 +103,7 @@ function Dictaphone(props) {
     {
       releaseMicrophone(mediaStreamRef);
       setRecordingState(false)
+      setRecordingText('Recording is Off')
     }
     else
     {
@@ -167,12 +170,12 @@ function Dictaphone(props) {
 
     // TODO: inline these after debugging
     function startRec() {
-      console.log('START RECORD')
+      setRecordingText('RECORDING')
       recorder.start(chunkSizeMs)
     }
 
     function stopRec() {
-      console.log('STOP RECORD')
+      setRecordingText('Waiting for audio...')
       recorder.stop()
     }
 
@@ -213,6 +216,7 @@ function Dictaphone(props) {
         placeholder="Hello hello"
         onChange={(e) => setAudioURLs([e.target.value])}
       />
+      {recordingText}
       <FormGroup>
         <FormControlLabel control={<Checkbox onChange={(e) => setLoop(e.target.checked)} />} label="Loop" />
         <FormControlLabel control={<Checkbox onChange={(e) => setAutoplay(e.target.checked)} />} label="Autoplay" />
