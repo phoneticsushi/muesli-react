@@ -7,6 +7,7 @@ import ToggleButton from './ToggleButton.tsx';
 import AudioDisplay from './AudioDisplay.js';
 import useKeypress from 'react-use-keypress';
 import randomWords from 'random-words';
+import './App.css'
 
 // Bug list:
 // TODO: Need to collect 500ms or so of audio before and after the 
@@ -206,7 +207,7 @@ function Dictaphone(props) {
   // This is due to the ToggleButton not containing a Ref since it's a function object
   // Need to either make it a class or find another way around
   return (
-    <Box>
+    <Box className="App">
       <h2>Dictaphone WIP "Effervescence"</h2>
       <Tooltip title="Toggle with Alt-R" arrow>
         <ToggleButton
