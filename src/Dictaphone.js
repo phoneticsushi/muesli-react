@@ -1,11 +1,13 @@
 import {
   Box,
   Checkbox,
+  Grid,
   Tooltip,
   FormGroup,
   FormControlLabel,
+  TextField,
   Stack,
-  TextField } from '@mui/material';
+} from '@mui/material';
 import React, {
   useRef,
   useState,
@@ -80,45 +82,57 @@ function Dictaphone(props) {
   return (
     <Box className="App">
       <h2>Dictaphone WIP "Pumblechook"</h2>
-      <Tooltip title="Toggle with Alt-R" arrow>
-        <ToggleButton
-          enabled={isRecording}
-          enableText="Start Recording"
-          disableText="Stop Recording"
-          onClick={toggleRecording}
-        />
-      </Tooltip>
-      <TextField
-        label="Custom Audio File Path"
-        placeholder="Hello hello"
-        onChange={(e) => setAudioClips([{ url: e.target.value }])}
-      />
-      <Stack spacing={2}>
-        <NumberTextField
-          disabled={isRecording}
-          label="Cut clip when silent for"
-          placeholder="Time in seconds..."
-          defaultValue={silenceDetectionPeriodMs / 1000}
-          minValue={1}
-          maxValue={15}
-          onChange={(value) => setSilenceDetectionPeriodMs(value * 1000)}
-        />
-        <NumberTextField
-          disabled={isRecording}
-          label="Discard clips shorter than"
-          placeholder="Time in seconds..."
-          defaultValue={insignificantClipDurationMs / 1000}
-          minValue={0}
-          maxValue={5}
-          onChange={(value) => setInsignificantClipDurationMs(value * 1000)}
-        />
-      </Stack>
-      <FormGroup>
-        <FormControlLabel control={<Checkbox onChange={(e) => setLoop(e.target.checked)} />} label="Loop" />
-        <FormControlLabel control={<Checkbox onChange={(e) => setAutoplay(e.target.checked)} />} label="Autoplay" />
-      </FormGroup>
-      {/* FIXME: Update key with some server-sidable ID instead of the URL?*/}
-      {audioClips.map(clip => <AudioDisplay key={clip.url} name={clip.name} audioPath={clip.url} autoplay={autoplay} loop={loop} />)}
+      <Grid container spacing={2}>
+        <Grid item id="controls" xs={5} sm={4} md={3} lg={2}>
+          <Stack spacing={2}>
+            <Tooltip title="Toggle with Alt-R" arrow>
+              <ToggleButton
+                enabled={isRecording}
+                enableText="Start Recording"
+                disableText="Stop Recording"
+                onClick={toggleRecording}
+              />
+            </Tooltip>
+
+            <TextField
+              label="Custom Audio File Path"
+              placeholder="(debug only)"
+              onChange={(e) => setAudioClips([{ url: e.target.value }])}
+            />
+
+            <NumberTextField
+              disabled={isRecording}
+              label="Cut clip when silent for"
+              placeholder="Time in seconds..."
+              defaultValue={silenceDetectionPeriodMs / 1000}
+              minValue={1}
+              maxValue={15}
+              onChange={(value) => setSilenceDetectionPeriodMs(value * 1000)}
+            />
+
+            <NumberTextField
+              disabled={isRecording}
+              label="Discard clips shorter than"
+              placeholder="Time in seconds..."
+              defaultValue={insignificantClipDurationMs / 1000}
+              minValue={0}
+              maxValue={5}
+              onChange={(value) => setInsignificantClipDurationMs(value * 1000)}
+            />
+
+            <FormGroup>
+              <FormControlLabel control={<Checkbox onChange={(e) => setLoop(e.target.checked)} />} label="Loop" />
+              <FormControlLabel control={<Checkbox onChange={(e) => setAutoplay(e.target.checked)} />} label="Autoplay" />
+            </FormGroup>
+          </Stack>
+        </Grid>
+        <Grid item id="clips" xs={7} sm={8} md={9} lg={10}>
+          <Stack spacing={2}>
+            {/* FIXME: Update key with some server-sidable ID instead of the URL?*/}
+            {audioClips.map(clip => <AudioDisplay key={clip.url} name={clip.name} audioPath={clip.url} autoplay={autoplay} loop={loop} />)}
+          </Stack>
+        </Grid>
+      </Grid>
     </Box>
   );
 }
