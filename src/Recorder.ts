@@ -48,11 +48,11 @@ function detectSilence(
 function recordAudioClips(
   mediaStream: MediaStream,
   onNewClip: (clip: MuesliAudioClip) => void,
+  silenceDetectionPeriodMs: number,
+  insignificantClipDurationMs: number,  // Clips shorter than this won't be saved
   // FIXME: move magic numbers into UI controls
-  silenceDetectionPeriodMs = 2000,
-  recordingPeriodExtensionMs = 500,  // How much audio is retained in each clip before and after silence
-  insignificantClipDurationMs = 1000,  // Clips shorter than this won't be saved
   silenceThresholdDbfs = -60,
+  recordingPeriodExtensionMs = 500,  // How much audio is retained in each clip before and after silence
   ): () => void {
   // Compute remaining time periods
   // NOTE: there appears to be an undocumented minimum chunk size value o ~60ms (on Firefox at least).

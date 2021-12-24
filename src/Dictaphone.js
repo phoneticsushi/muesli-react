@@ -1,4 +1,11 @@
-import { Box, Tooltip, Checkbox, FormGroup, FormControlLabel, TextField } from '@mui/material';
+import {
+  Box,
+  Checkbox,
+  Tooltip,
+  FormGroup,
+  FormControlLabel,
+  Stack,
+  TextField } from '@mui/material';
 import React, {
   useRef,
   useState,
@@ -8,19 +15,23 @@ import AudioDisplay from './AudioDisplay.js';
 import useKeypress from 'react-use-keypress';
 
 import recordAudioClips from './Recorder'
+import NumberTextField from './NumberTextField';
 import './App.css'
 
 // Bug/Feature list:
 // TODO: Should NOT trim audio at all when the user invokes "Stop Recording"
 // TODO: Spacebar should pause/play the MOST RECENTLY CLICKED-ON AudioDisplay and do nothing else
 // TODO: Status icon when capturing clips
-// TODO: Recording parameters to UI controls
+// TODO: (s) adorment on recording timing controls
+// TODO: add silence calibration button
 
 function Dictaphone(props) {
   // Set/cleared when the user toggles recording
   const recordingCleanupFunction = useRef();
   //TODO: disambiguate between mic open and actually recording
   const [isRecording, setRecordingState] = useState()
+  const [insignificantClipDurationMs, setInsignificantClipDurationMs] = useState(1000)
+  const [silenceDetectionPeriodMs, setSilenceDetectionPeriodMs] = useState(2000)
 
   useKeypress('r', (event) => {
     if (event.altKey) {
@@ -45,8 +56,10 @@ function Dictaphone(props) {
           recordAudioClips(
             mediaStream,
             addAudioClip,
+            silenceDetectionPeriodMs,
+            insignificantClipDurationMs,
           )
-        }
+      }
       )
       setRecordingState(true)
     }
@@ -80,6 +93,26 @@ function Dictaphone(props) {
         placeholder="Hello hello"
         onChange={(e) => setAudioClips([{ url: e.target.value }])}
       />
+      <Stack spacing={2}>
+        <NumberTextField
+          disabled={isRecording}
+          label="Cut clip when silent for"
+          placeholder="Time in seconds..."
+          defaultValue={silenceDetectionPeriodMs / 1000}
+          minValue={1}
+          maxValue={15}
+          onChange={(value) => setSilenceDetectionPeriodMs(value * 1000)}
+        />
+        <NumberTextField
+          disabled={isRecording}
+          label="Discard clips shorter than"
+          placeholder="Time in seconds..."
+          defaultValue={insignificantClipDurationMs / 1000}
+          minValue={0}
+          maxValue={5}
+          onChange={(value) => setInsignificantClipDurationMs(value * 1000)}
+        />
+      </Stack>
       <FormGroup>
         <FormControlLabel control={<Checkbox onChange={(e) => setLoop(e.target.checked)} />} label="Loop" />
         <FormControlLabel control={<Checkbox onChange={(e) => setAutoplay(e.target.checked)} />} label="Autoplay" />
