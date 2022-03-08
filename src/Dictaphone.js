@@ -3,6 +3,7 @@ import {
   Checkbox,
   Grid,
   InputAdornment,
+  LinearProgress,
   Tooltip,
   FormGroup,
   FormControlLabel,
@@ -31,10 +32,12 @@ import './App.css'
 function Dictaphone(props) {
   // Set/cleared when the user toggles recording
   const recordingCleanupFunction = useRef();
+  // Recording State
   const [isMicrophoneOpen, setMicrophoneOpen] = useState()
-  const [isRecording, setRecording] = useState()
+  const [timeUntilClipEndsMs, setTimeUntilClipEndsMs] = useState()
+  // Preferences
   const [insignificantClipDurationMs, setInsignificantClipDurationMs] = useState(1000)
-  const [silenceDetectionPeriodMs, setSilenceDetectionPeriodMs] = useState(2000)
+  const [silenceDetectionPeriodMs, setSilenceDetectionPeriodMs] = useState(3000)
 
   useKeypress('r', (event) => {
     if (event.altKey) {
@@ -49,6 +52,7 @@ function Dictaphone(props) {
       recordingCleanupFunction.current();
       recordingCleanupFunction.current = null;
       setMicrophoneOpen(false)
+      setTimeUntilClipEndsMs(0)
     }
     else {
       navigator.mediaDevices.getUserMedia({
@@ -58,7 +62,7 @@ function Dictaphone(props) {
         recordingCleanupFunction.current =
           recordAudioClips(
             mediaStream,
-            onRecordingStart,
+            setTimeUntilClipEndsMs,  // May need to be throttled for performance
             addAudioClip,
             silenceDetectionPeriodMs,
             insignificantClipDurationMs,
@@ -69,13 +73,13 @@ function Dictaphone(props) {
     }
   }
 
-  function onRecordingStart() {
-    setRecording(true)
-  }
-
   function addAudioClip(newClip) {
     setAudioClips(clips => [newClip, ...clips])  // Most recent clip first
-    setRecording(false)
+  }
+
+  // FIXME: does not distinguish the first time through where no recording takes place
+  function getProgressUntilClipEnd() {
+    return timeUntilClipEndsMs / silenceDetectionPeriodMs * 100
   }
 
   // For debugging state transitions on AudioDisplay
@@ -102,7 +106,8 @@ function Dictaphone(props) {
             </Tooltip>
 
             <p>Mic Open: {String(isMicrophoneOpen)}</p>
-            <p>Recording: {String(isRecording)}</p>
+            <p>Time until Clip: {String(Math.floor(timeUntilClipEndsMs / 100) / 10)} seconds</p>
+            <LinearProgress variant="determinate" value={getProgressUntilClipEnd()} />
 
             <TextField
               label="Custom Audio File Path"

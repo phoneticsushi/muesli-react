@@ -7,6 +7,7 @@ function detectSilence(
   silence_delay_ms: number,
   min_decibels: number,
   onSoundStart = () => {},
+  onSilenceDurationMs = (silenceDuration: number) => {},
   onSoundEnd = () => {},
   ): () => void {
   const analyserNode = new AnalyserNode(audioCtx, {
@@ -30,7 +31,9 @@ function detectSilence(
         }
       silence_start = now; // set it to now
     }
-    if (activelyRecording && now - silence_start > silence_delay_ms) {
+    const silenceDurationMs = now - silence_start
+    onSilenceDurationMs(silenceDurationMs)
+    if (activelyRecording && silenceDurationMs > silence_delay_ms) {
       onSoundEnd();
       activelyRecording = false;
       console.log("Detected Silence")
@@ -47,7 +50,7 @@ function detectSilence(
 
 function recordAudioClips(
   mediaStream: MediaStream,
-  onClipStart: () => void,
+  onTimeUntilClipEndsMs: (timeUntilClipEndsMs: number) => void,
   onNewClip: (clip: MuesliAudioClip) => void,
   silenceDetectionPeriodMs: number,
   insignificantClipDurationMs: number,  // Clips shorter than this won't be saved
@@ -60,7 +63,8 @@ function recordAudioClips(
   // Below 60ms, this implementation breaks since it relies on the chunk size being valid to trim the audio correctly.
   // FIXME: split audio based on samples/timestamps rather than relying on the recorder to work properly
   const chunkSizeMs = 100;  // pretty arbitrary; tradeoff between precision and performance
-  const numChunksToTrimFromRecordingEnd = (silenceDetectionPeriodMs - 2 * recordingPeriodExtensionMs) / chunkSizeMs;
+  const timeToTrimFromRecordingEndMs = silenceDetectionPeriodMs - 2 * recordingPeriodExtensionMs
+  const numChunksToTrimFromRecordingEnd = timeToTrimFromRecordingEndMs / chunkSizeMs;
   const numChunksForInsignificantClip = insignificantClipDurationMs / chunkSizeMs;
 
   // Set up AudioContext
@@ -110,14 +114,13 @@ function recordAudioClips(
     sourceNode,
     silenceDetectionPeriodMs,
     silenceThresholdDbfs,
-    startRecording,
+    () => recorder.start(chunkSizeMs),
+    // FIXME: since the recorder is on a delay line, this math is correct,
+    // but it prevents a silence duration of 0 from reporting the full silence detection period
+    // Need to rethink how the delay line works to get this to work
+    (silenceDurationMs: number) => onTimeUntilClipEndsMs(Math.max(silenceDetectionPeriodMs - (silenceDurationMs + recordingPeriodExtensionMs), 0)),
     () => recorder.stop(),
   );
-
-  function startRecording() {
-    recorder.start(chunkSizeMs)
-    onClipStart()
-  }
 
   // Cleanup Function
   return () => {
