@@ -2,6 +2,7 @@ import {
   Box,
   Checkbox,
   Grid,
+  InputAdornment,
   Tooltip,
   FormGroup,
   FormControlLabel,
@@ -103,7 +104,10 @@ function Dictaphone(props) {
             <NumberTextField
               disabled={isRecording}
               label="Cut clip when silent for"
-              placeholder="Time in seconds..."
+              placeholder="Time..."
+              InputProps={{
+                endAdornment: <InputAdornment position="end">s</InputAdornment>,
+              }}
               defaultValue={silenceDetectionPeriodMs / 1000}
               minValue={1}
               maxValue={15}
@@ -113,7 +117,10 @@ function Dictaphone(props) {
             <NumberTextField
               disabled={isRecording}
               label="Discard clips shorter than"
-              placeholder="Time in seconds..."
+              placeholder="Time..."
+              InputProps={{
+                endAdornment: <InputAdornment position="end">s</InputAdornment>,
+              }}
               defaultValue={insignificantClipDurationMs / 1000}
               minValue={0}
               maxValue={5}
