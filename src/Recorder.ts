@@ -47,6 +47,7 @@ function detectSilence(
 
 function recordAudioClips(
   mediaStream: MediaStream,
+  onClipStart: () => void,
   onNewClip: (clip: MuesliAudioClip) => void,
   silenceDetectionPeriodMs: number,
   insignificantClipDurationMs: number,  // Clips shorter than this won't be saved
@@ -109,9 +110,14 @@ function recordAudioClips(
     sourceNode,
     silenceDetectionPeriodMs,
     silenceThresholdDbfs,
-    () => recorder.start(chunkSizeMs),
+    startRecording,
     () => recorder.stop(),
   );
+
+  function startRecording() {
+    recorder.start(chunkSizeMs)
+    onClipStart()
+  }
 
   // Cleanup Function
   return () => {

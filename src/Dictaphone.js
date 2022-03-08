@@ -31,24 +31,24 @@ import './App.css'
 function Dictaphone(props) {
   // Set/cleared when the user toggles recording
   const recordingCleanupFunction = useRef();
-  //TODO: disambiguate between mic open and actually recording
-  const [isRecording, setRecordingState] = useState()
+  const [isMicrophoneOpen, setMicrophoneOpen] = useState()
+  const [isRecording, setRecording] = useState()
   const [insignificantClipDurationMs, setInsignificantClipDurationMs] = useState(1000)
   const [silenceDetectionPeriodMs, setSilenceDetectionPeriodMs] = useState(2000)
 
   useKeypress('r', (event) => {
     if (event.altKey) {
-      toggleRecording()
+      toggleMicrophoneOpen()
     }
   });
 
   const [audioClips, setAudioClips] = useState([])
 
-  function toggleRecording() {
-    if (isRecording) {
+  function toggleMicrophoneOpen() {
+    if (isMicrophoneOpen) {
       recordingCleanupFunction.current();
       recordingCleanupFunction.current = null;
-      setRecordingState(false)
+      setMicrophoneOpen(false)
     }
     else {
       navigator.mediaDevices.getUserMedia({
@@ -58,18 +58,24 @@ function Dictaphone(props) {
         recordingCleanupFunction.current =
           recordAudioClips(
             mediaStream,
+            onRecordingStart,
             addAudioClip,
             silenceDetectionPeriodMs,
             insignificantClipDurationMs,
           )
       }
       )
-      setRecordingState(true)
+      setMicrophoneOpen(true)
     }
+  }
+
+  function onRecordingStart() {
+    setRecording(true)
   }
 
   function addAudioClip(newClip) {
     setAudioClips(clips => [newClip, ...clips])  // Most recent clip first
+    setRecording(false)
   }
 
   // For debugging state transitions on AudioDisplay
@@ -82,18 +88,21 @@ function Dictaphone(props) {
   // Need to either make it a class or find another way around
   return (
     <Box className="App">
-      <h2>Dictaphone WIP "Pumblechook"</h2>
+      <h2>Muesli Practice Helper</h2>
       <Grid container spacing={2}>
         <Grid item id="controls" xs={5} sm={4} md={3} lg={2}>
           <Stack spacing={2}>
             <Tooltip title="Toggle with Alt-R" arrow>
               <ToggleButton
-                enabled={isRecording}
+                enabled={isMicrophoneOpen}
                 enableText="Start Recording"
                 disableText="Stop Recording"
-                onClick={toggleRecording}
+                onClick={toggleMicrophoneOpen}
               />
             </Tooltip>
+
+            <p>Mic Open: {String(isMicrophoneOpen)}</p>
+            <p>Recording: {String(isRecording)}</p>
 
             <TextField
               label="Custom Audio File Path"
@@ -102,7 +111,7 @@ function Dictaphone(props) {
             />
 
             <NumberTextField
-              disabled={isRecording}
+              disabled={isMicrophoneOpen}
               label="Cut clip when silent for"
               placeholder="Time..."
               InputProps={{
@@ -115,7 +124,7 @@ function Dictaphone(props) {
             />
 
             <NumberTextField
-              disabled={isRecording}
+              disabled={isMicrophoneOpen}
               label="Discard clips shorter than"
               placeholder="Time..."
               InputProps={{
