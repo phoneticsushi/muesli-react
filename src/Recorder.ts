@@ -1,51 +1,11 @@
 import randomWords from 'random-words';
 import { MuesliAudioClip } from './Types';
+import { exportBuffersAsWav } from './AudioCapture'
 
-function detectSilence(
-  audioCtx: AudioContext,
-  sourceAudioNode: AudioNode,
-  silence_delay_ms: number,
-  min_decibels: number,
-  onSoundStart = () => {},
-  onSilenceDurationMs = (silenceDuration: number) => {},
-  onSoundEnd = () => {},
-  ): () => void {
-  const analyserNode = new AnalyserNode(audioCtx, {
-    minDecibels: min_decibels,
-  });
-  sourceAudioNode.connect(analyserNode);
-
-  // FIXME: does this leak memory?
-  const data = new Uint8Array(analyserNode.frequencyBinCount); // will hold our data
-  let silence_start = performance.now();
-  let activelyRecording = false; // trigger only once per silence event
-
-  function loop() {
-    const now: DOMHighResTimeStamp = performance.now()
-    analyserNode.getByteFrequencyData(data); // get current data
-    if (data.some(v => v)) { // if there is data above the given db limit
-      if(!activelyRecording){
-        onSoundStart();
-        activelyRecording = true;
-        console.log("Detected Audio")
-        }
-      silence_start = now; // set it to now
-    }
-    const silenceDurationMs = now - silence_start
-    onSilenceDurationMs(silenceDurationMs)
-    if (activelyRecording && silenceDurationMs > silence_delay_ms) {
-      onSoundEnd();
-      activelyRecording = false;
-      console.log("Detected Silence")
-    }
-  }
-
-  const analysisInterval = setInterval(loop, 100);  // Arbitrary delay
-  // Cleanup Function
-  return () => {
-    clearInterval(analysisInterval)
-    console.log('Ran cleanup function for silence detection')
-  }
+enum ClipRecordingState {
+  OpeningPadding = "OpeningPadding",
+  Waiting = "Waiting",
+  Recording = "Recording",
 }
 
 function recordAudioClips(
@@ -56,85 +16,143 @@ function recordAudioClips(
   insignificantClipDurationMs: number,  // Clips shorter than this won't be saved
   // FIXME: move magic numbers into UI controls
   silenceThresholdDbfs = -60,
-  recordingPeriodExtensionMs = 500,  // How much audio is retained in each clip before and after silence
-  ): () => void {
-  // Compute remaining time periods
-  // NOTE: there appears to be an undocumented minimum chunk size value o ~60ms (on Firefox at least).
-  // Below 60ms, this implementation breaks since it relies on the chunk size being valid to trim the audio correctly.
-  // FIXME: split audio based on samples/timestamps rather than relying on the recorder to work properly
-  const chunkSizeMs = 100;  // pretty arbitrary; tradeoff between precision and performance
-  const timeToTrimFromRecordingEndMs = silenceDetectionPeriodMs - 2 * recordingPeriodExtensionMs
-  const numChunksToTrimFromRecordingEnd = timeToTrimFromRecordingEndMs / chunkSizeMs;
-  const numChunksForInsignificantClip = insignificantClipDurationMs / chunkSizeMs;
+  recordingPaddingPeriodMs = 500,  // How much audio is retained in each clip before and after silence
+): () => void {
+  if (silenceDetectionPeriodMs <= recordingPaddingPeriodMs) {
+    throw new Error("Silence detection period must be greater than padding period");
+  }
+
+  // Since operations are done by chunk,
+  // this is a tradeoff between trimming precision and performance.
+  // createScriptProcessor() requires that this is a power of 2.
+  // FIXME: do math in samples rather than chunks
+  const samplesPerChunk = 2048
 
   // Set up AudioContext
   const audioCtx = new AudioContext();
+
   const sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+  const analyserNode = new AnalyserNode(audioCtx, { minDecibels: silenceThresholdDbfs });
+  const captureNode = audioCtx.createScriptProcessor(samplesPerChunk, 2, 0);
 
-  // Record from stream on a delay to allow capturing audio
-  // from before recording is triggered
-  const delayNode = new DelayNode(audioCtx, {
-    delayTime: recordingPeriodExtensionMs / 1000,
-    maxDelayTime: recordingPeriodExtensionMs / 1000,
-  });
-  const destinationNode = audioCtx.createMediaStreamDestination();
-  sourceNode.connect(delayNode).connect(destinationNode);
-  const recorder = new MediaRecorder(destinationNode.stream);
+  sourceNode.connect(analyserNode).connect(captureNode);
+  console.log('Source Sample Rate: ', audioCtx.sampleRate)
 
-  let chunks: Blob[] = []
-  recorder.ondataavailable =
-    function(e) {
-        chunks.push(e.data);
+  // Compute remaining time periods
+  const samplesPerMs = audioCtx.sampleRate / 1000
+  const chunkSizeMs = samplesPerChunk / samplesPerMs;
+  console.log('Chunk Size Ms: ', chunkSizeMs)
+  const recordingPaddingPeriodChunks = recordingPaddingPeriodMs / chunkSizeMs;
+
+  const analyzerFrequencyData = new Uint8Array(analyserNode.frequencyBinCount);  // Will be clobbered every time the frequency analyzer runs
+  let recordedAudioChunks: Float32Array[] = []
+  let recordingState: ClipRecordingState = ClipRecordingState.OpeningPadding;
+  let silenceStartTimestamp: DOMHighResTimeStamp | null = null
+  
+  function pollForSilenceDetection() {
+    const now: DOMHighResTimeStamp = performance.now()
+    analyserNode.getByteFrequencyData(analyzerFrequencyData); // get current data
+
+    if (recordingState === ClipRecordingState.OpeningPadding)
+    {
+      console.log('Skipping silence detection while waiting for padding')
+      return;
     }
 
-  recorder.onstop =
-    function(e) {
-      if (chunks.length <= numChunksForInsignificantClip) {
-        // Drop this clip as it's too short to be an actual recording
-        console.log("Skipping Audio conversion as number of chunks", chunks.length, "<=", numChunksForInsignificantClip)
-      } else {
-        // Convert recorded audio, trimming off the final silence
-        console.log("Converting Audio as number of chunks", chunks.length, ">", numChunksForInsignificantClip, "- trimming", numChunksToTrimFromRecordingEnd)
-        const blob = new Blob(chunks.slice(0, chunks.length - numChunksToTrimFromRecordingEnd), { 'type' : 'audio/ogg; codecs=opus' });
-        const newClip = {
-          name: randomWords({exactly: 1, wordsPerString: 2, separator: '-'})[0],  // Returns array for some reason
-          url: window.URL.createObjectURL(blob)
-        }
-        console.log("Generated clip", newClip);
-        onNewClip(newClip)
+    if (analyzerFrequencyData.some(v => v)) { // if there is data above the given db limit
+      silenceStartTimestamp = now;
+      if(recordingState === ClipRecordingState.Waiting){
+        console.log("Detected Audio")
       }
-
-      // Reset for next recording
-      chunks = [];
+      recordingState = ClipRecordingState.Recording;
     }
 
-  // Detect silence on the live audio
-  const stopSilenceDetection = detectSilence(
-    audioCtx,
-    sourceNode,
-    silenceDetectionPeriodMs,
-    silenceThresholdDbfs,
-    () => recorder.start(chunkSizeMs),
-    // FIXME: since the recorder is on a delay line, this math is correct,
-    // but it prevents a silence duration of 0 from reporting the full silence detection period
-    // Need to rethink how the delay line works to get this to work
-    (silenceDurationMs: number) => onTimeUntilClipEndsMs(Math.max(silenceDetectionPeriodMs - (silenceDurationMs + recordingPeriodExtensionMs), 0)),
-    () => recorder.stop(),
-  );
+    if (silenceStartTimestamp === null)
+    {
+      onTimeUntilClipEndsMs(0);
+    }
+    else
+    {
+      const silenceDurationMs = now - silenceStartTimestamp
+      onTimeUntilClipEndsMs(Math.max(0, silenceDetectionPeriodMs - silenceDurationMs))  // Allow React to update the UI
+
+      if (recordingState === ClipRecordingState.Recording && silenceDurationMs > silenceDetectionPeriodMs) {
+        console.log("Detected Silence")
+        publishClip(silenceDurationMs - recordingPaddingPeriodMs)
+        rotateChunksForNewClip()
+        recordingState = ClipRecordingState.Waiting
+      }
+    }
+  }
+
+  function publishClip(timeToTrimFromEndMs: number) {
+    const numChunksToTrimFromEnd = timeToTrimFromEndMs / chunkSizeMs;
+    console.log("Converting Audio:", recordedAudioChunks.length, "chunks available, trmming", numChunksToTrimFromEnd)
+    const slicedAudioChunks = recordedAudioChunks.slice(0, recordedAudioChunks.length - numChunksToTrimFromEnd);
+  // FIXME: consider encoding the audio somehow after a clip is created rather than using WAV?
+    const blob = exportBuffersAsWav(slicedAudioChunks, audioCtx.sampleRate)
+    const newClip = {
+      name: randomWords({exactly: 1, wordsPerString: 2, separator: '-'})[0],  // Returns array for some reason
+      url: window.URL.createObjectURL(blob)
+    }
+    console.log("Generated clip", newClip);
+    onNewClip(newClip)
+  }
+
+  function rotateChunksForNewClip() {
+    // Prepare for next recording by keeping most recent audio to use as padding for the next clip
+    recordedAudioChunks = recordedAudioChunks.slice(recordedAudioChunks.length - recordingPaddingPeriodChunks, recordedAudioChunks.length);
+  }
+
+  
+  function onPcmChunk(chunk: Float32Array) {
+      recordedAudioChunks.push(chunk);
+      if (recordedAudioChunks.length > recordingPaddingPeriodChunks)
+      {
+        if (recordingState === ClipRecordingState.OpeningPadding || recordingState === ClipRecordingState.Waiting)
+        {
+          recordedAudioChunks.shift()
+          recordingState = ClipRecordingState.Waiting
+        }
+      }
+  }
+
+  captureNode.onaudioprocess = function(audioProcessingEvent) {
+    const inputBuffer = audioProcessingEvent.inputBuffer;
+    
+    //FIXME: handle more than first channel
+    // for (var channel = 0; channel < inputBuffer.numberOfChannels; channel++) {
+    const inputData = inputBuffer.getChannelData(0);
+    onPcmChunk(inputData)
+  }
+
+  function stopRecording() {
+    console.log('Recorder has been stopped; publishing final clip...')
+    const numChunksForInsignificantClip = (insignificantClipDurationMs + recordingPaddingPeriodMs) / chunkSizeMs;
+
+    if (silenceStartTimestamp === null) {
+      console.log("Skipping final clip publish as silence has never been detected")
+    } else if (recordedAudioChunks.length <= numChunksForInsignificantClip) {
+      // Drop any audio in the buffer as it's too short to be an actual recording
+      console.log("Skipping final clip publish as number of chunks", recordedAudioChunks.length, "<=", numChunksForInsignificantClip)
+    } else {
+      const silenceDurationMs = performance.now() - silenceStartTimestamp;
+      publishClip(silenceDurationMs - recordingPaddingPeriodMs);
+    }
+
+    audioCtx.close()
+    mediaStream.getTracks().forEach(track => track.stop());
+  }
+
+  console.log('Starting Recorder...')
+  const analysisInterval = setInterval(pollForSilenceDetection, 100);  // Arbitrary delay
 
   // Cleanup Function
   return () => {
-    stopSilenceDetection()
-    if (recorder.state === 'recording')
-    {
-      // If a recording was in progress, get that recording
-      // FIXME: prevent trimming end of audio in this case
-      recorder.stop()
-    }
-    audioCtx.close()
-    mediaStream.getTracks().forEach(track => track.stop());
+    clearInterval(analysisInterval)
+    stopRecording()
     console.log('Ran cleanup function for recording routine')
-    //FIXME: this leaks the 'recorder'.  No clue how to resolve this
+    //FIXME: getting some exceptions related to calling "process" that may be related to this - not sure yet
   }
 }
 

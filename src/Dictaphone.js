@@ -23,7 +23,6 @@ import NumberTextField from './NumberTextField';
 import './App.css'
 
 // Bug/Feature list:
-// TODO: Should NOT trim audio at all when the user invokes "Stop Recording"
 // TODO: Spacebar should pause/play the MOST RECENTLY CLICKED-ON AudioDisplay and do nothing else
 // TODO: Status icon when capturing clips
 // TODO: (s) adorment on recording timing controls
@@ -107,7 +106,12 @@ function Dictaphone(props) {
 
             <p>Mic Open: {String(isMicrophoneOpen)}</p>
             <p>Time until Clip: {String(Math.floor(timeUntilClipEndsMs / 100) / 10)} seconds</p>
-            <LinearProgress variant="determinate" value={getProgressUntilClipEnd()} />
+
+            {/* FIXME: flip horizontally? */}
+            <LinearProgress
+              variant="determinate"
+              value={getProgressUntilClipEnd()}
+            />
 
             <TextField
               label="Custom Audio File Path"
