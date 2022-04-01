@@ -10,6 +10,7 @@ enum ClipRecordingState {
 
 function recordAudioClips(
   mediaStream: MediaStream,
+  onAudioAnalysis: (audioLevelDetectedDbfs: number | undefined) => void,
   onTimeUntilClipEndsMs: (timeUntilClipEndsMs: number) => void,
   onNewClip: (clip: MuesliAudioClip) => void,
   silenceDetectionPeriodMs: number,
@@ -44,7 +45,7 @@ function recordAudioClips(
         onPcmChunk(audioSamples)
       }
 
-  sourceNode.connect(analyserNode).connect(captureNode);
+      sourceNode.connect(analyserNode).connect(captureNode);
     },
     (_) => {
       throw Error("Failed to resolve Promise loading DummyWorkletProcessor!");
@@ -99,6 +100,10 @@ function recordAudioClips(
         recordingState = ClipRecordingState.Waiting
       }
     }
+
+    // FIXME: need to play with minDecibels to make this work as expected
+    const averageVolume = analyzerFrequencyData.reduce((a, b) => a + b) / analyzerFrequencyData.length;
+    onAudioAnalysis(averageVolume)
   }
 
   function publishClip(timeToTrimFromEndMs: number) {
@@ -149,6 +154,7 @@ function recordAudioClips(
 
     audioCtx.close()
     mediaStream.getTracks().forEach(track => track.stop());
+    onAudioAnalysis(undefined);
   }
 
   console.log('Starting Recorder...')

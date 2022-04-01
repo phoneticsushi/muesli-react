@@ -34,6 +34,7 @@ function Dictaphone(props) {
   // Recording State
   const [isMicrophoneOpen, setMicrophoneOpen] = useState()
   const [timeUntilClipEndsMs, setTimeUntilClipEndsMs] = useState()
+  const [averageVolume, setAverageVolume] = useState()
   // Preferences
   const [insignificantClipDurationMs, setInsignificantClipDurationMs] = useState(1000)
   const [silenceDetectionPeriodMs, setSilenceDetectionPeriodMs] = useState(3000)
@@ -61,6 +62,7 @@ function Dictaphone(props) {
         recordingCleanupFunction.current =
           recordAudioClips(
             mediaStream,
+            setAverageVolume,
             setTimeUntilClipEndsMs,  // May need to be throttled for performance
             addAudioClip,
             silenceDetectionPeriodMs,
@@ -105,6 +107,7 @@ function Dictaphone(props) {
             </Tooltip>
 
             <p>Mic Open: {String(isMicrophoneOpen)}</p>
+            <p>Average Volume: {String(averageVolume)}</p>
             <p>Time until Clip: {String(Math.floor(timeUntilClipEndsMs / 100) / 10)} seconds</p>
 
             {/* FIXME: flip horizontally? */}
