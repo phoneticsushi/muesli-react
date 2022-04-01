@@ -22,33 +22,49 @@ function recordAudioClips(
     throw new Error("Silence detection period must be greater than padding period");
   }
 
-  // Since operations are done by chunk,
-  // this is a tradeoff between trimming precision and performance.
-  // createScriptProcessor() requires that this is a power of 2.
-  // FIXME: do math in samples rather than chunks
-  const samplesPerChunk = 2048
-
   // Set up AudioContext
   const audioCtx = new AudioContext();
 
   const sourceNode = audioCtx.createMediaStreamSource(mediaStream);
   const analyserNode = new AnalyserNode(audioCtx, { minDecibels: silenceThresholdDbfs });
-  const captureNode = audioCtx.createScriptProcessor(samplesPerChunk, 2, 0);
+
+  // Recording State
+  const analyzerFrequencyData = new Uint8Array(analyserNode.frequencyBinCount);  // Will be clobbered every time the frequency analyzer runs
+  let recordedAudioChunks: Float32Array[] = [];
+  let recordingState: ClipRecordingState = ClipRecordingState.OpeningPadding;
+  let silenceStartTimestamp: DOMHighResTimeStamp | null = null;
+
+  // Add CaptureNode
+  audioCtx.audioWorklet.addModule(process.env.PUBLIC_URL + '/DummyWorkletProcessor.js').then(
+    (_) => {
+      const captureNode = new AudioWorkletNode(audioCtx, 'dummy-worklet-processor');
+
+      captureNode.port.onmessage  = event => {
+        const audioSamples = event.data[0][0];  // FIXME: save second channel as well
+        onPcmChunk(audioSamples)
+      }
 
   sourceNode.connect(analyserNode).connect(captureNode);
+    },
+    (_) => {
+      throw Error("Failed to resolve Promise loading DummyWorkletProcessor!");
+    }
+  )
+  
   console.log('Source Sample Rate: ', audioCtx.sampleRate)
 
-  // Compute remaining time periods
+  // Compute remaining time periods:
+  // Since operations are done by chunk,
+  // this is a tradeoff between trimming precision and performance.
+  // createScriptProcessor() requires that this is a power of 2.
+  // FIXME: do math in samples rather than chunks
+  const samplesPerChunk = 128
+
   const samplesPerMs = audioCtx.sampleRate / 1000
   const chunkSizeMs = samplesPerChunk / samplesPerMs;
   console.log('Chunk Size Ms: ', chunkSizeMs)
   const recordingPaddingPeriodChunks = recordingPaddingPeriodMs / chunkSizeMs;
 
-  const analyzerFrequencyData = new Uint8Array(analyserNode.frequencyBinCount);  // Will be clobbered every time the frequency analyzer runs
-  let recordedAudioChunks: Float32Array[] = []
-  let recordingState: ClipRecordingState = ClipRecordingState.OpeningPadding;
-  let silenceStartTimestamp: DOMHighResTimeStamp | null = null
-  
   function pollForSilenceDetection() {
     const now: DOMHighResTimeStamp = performance.now()
     analyserNode.getByteFrequencyData(analyzerFrequencyData); // get current data
@@ -115,15 +131,6 @@ function recordAudioClips(
           recordingState = ClipRecordingState.Waiting
         }
       }
-  }
-
-  captureNode.onaudioprocess = function(audioProcessingEvent) {
-    const inputBuffer = audioProcessingEvent.inputBuffer;
-    
-    //FIXME: handle more than first channel
-    // for (var channel = 0; channel < inputBuffer.numberOfChannels; channel++) {
-    const inputData = inputBuffer.getChannelData(0);
-    onPcmChunk(inputData)
   }
 
   function stopRecording() {
